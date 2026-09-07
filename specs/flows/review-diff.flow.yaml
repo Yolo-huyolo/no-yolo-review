@@ -1,0 +1,77 @@
+kind: flow
+name: review-diff
+version: "0.1.0"
+description: Fan out the staged diff to every enabled persona in parallel, then aggregate their findings into one report
+
+inputs:
+  - staged_diff
+  - review_config
+
+outputs:
+  - review_report
+
+steps:
+  - id: load-personas
+    action: config.resolve-personas
+    requires:
+      - review_config
+    provides:
+      - active_personas
+    critical: true
+    onError: fail
+    # Filters review_config.personas to enabled: true, and merges each
+    # built-in persona's default focus text when the project didn't
+    # override it. An empty result (nothing enabled) is a config error,
+    # not silently "no review" — critical, fails the flow.
+
+  - id: fan-out-personas
+    action: adk.parallel-agent
+    requires:
+      - staged_diff
+      - active_personas
+    provides:
+      - persona_results
+    critical: false
+    onError: warn
+    # One ADK LlmAgent per active persona, run concurrently via
+    # ParallelAgent (see review-policy.yaml for the per-persona timeout
+    # and the fail-open rule when a persona errors or times out — a
+    # failed persona is dropped from persona_results, not fatal to the
+    # whole flow).
+
+  - id: aggregate-findings
+    action: adk.sequential-agent
+    requires:
+      - persona_results
+    provides:
+      - raw_findings
+    critical: false
+    onError: warn
+    # A single lightweight LlmAgent that receives every persona's raw
+    # output and: (1) deduplicates overlapping findings that point at
+    # the same root cause from different personas, (2) does NOT invent
+    # new findings — it only merges/dedupes what personas already
+    # reported.
+
+  - id: apply-policy-overrides
+    action: policy.apply
+    requires:
+      - raw_findings
+    provides:
+      - findings
+    critical: true
+    onError: fail
+    # Deterministic, non-LLM step: walks review_config.policy_overrides
+    # and review-policy.yaml's built-in rules, escalating severity where
+    # a finding's summary matches. Pure function — must not fail for a
+    # reason other than a malformed config, so critical: true is safe
+    # here (unlike the LLM steps above).
+
+  - id: compose-report
+    action: compose
+    requires:
+      - findings
+    provides:
+      - review_report
+    critical: true
+    onError: fail

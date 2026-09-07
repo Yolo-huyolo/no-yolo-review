@@ -1,0 +1,85 @@
+kind: workspace
+name: no-yolo-review
+version: "0.1.0"
+description: File layout and spec-to-code generation mapping for the no-yolo-review CLI package
+
+structure:
+  - path: src/cli.ts
+    generated_from: review-diff.flow.yaml
+    generate_with: node-cli-entrypoint
+    # Parses argv (--full, --dev, etc.), loads .no-yolo.yml, dispatches
+    # to review-diff-fast or review-diff, then redirect-protected-branch
+    # per review-policy.yaml's full-mode-is-opt-in rule.
+
+  - path: src/config/schema.ts
+    generated_from: review-config.artifact.yaml
+    generate_with: zod-schema
+    # Also the source for persona.artifact.yaml's shape (personas is a
+    # field of review-config).
+
+  - path: src/config/load.ts
+    generated_from: review-config.artifact.yaml
+    generate_with: yaml-loader
+    # Reads .no-yolo.yml, validates against schema.ts, merges built-in
+    # persona defaults for any enabled persona missing `focus`.
+
+  - path: src/personas/registry.ts
+    generated_from: persona.artifact.yaml
+    generate_with: typescript-module
+    # The three built-in presets (correctness, security, seo) as
+    # exported constants — each a persona.artifact.yaml instance with
+    # builtin: true and a hand-written focus string.
+
+  - path: src/personas/correctness.ts
+    generated_from: persona.artifact.yaml
+    generate_with: typescript-module
+
+  - path: src/personas/security.ts
+    generated_from: persona.artifact.yaml
+    generate_with: typescript-module
+
+  - path: src/personas/seo.ts
+    generated_from: persona.artifact.yaml
+    generate_with: typescript-module
+    # Must encode the request-time-lastmod-is-a-seo-finding scenario
+    # from review-diff.behavior.yaml explicitly in its focus text —
+    # that scenario exists precisely because a generic SEO prompt
+    # missed it once already.
+
+  - path: src/flows/review-diff.ts
+    generated_from: review-diff.flow.yaml
+    generate_with: adk-parallel-sequential-agent
+    # fan-out-personas as an ADK ParallelAgent over active_personas,
+    # aggregate-findings as a single following LlmAgent (ADK
+    # SequentialAgent composition of the two).
+
+  - path: src/flows/review-diff-fast.ts
+    generated_from: review-diff-fast.flow.yaml
+    generate_with: kitana-single-call
+
+  - path: src/flows/redirect-protected-branch.ts
+    generated_from: redirect-protected-branch.flow.yaml
+    generate_with: git-cli-wrapper
+
+  - path: src/policy/apply.ts
+    generated_from: review-policy.yaml
+    generate_with: typescript-module
+    # Pure function: (raw_findings, config) -> findings. No LLM calls —
+    # regex/keyword matching per rule, deterministic.
+
+  - path: src/report.ts
+    generated_from: review-report.artifact.yaml
+    generate_with: typescript-module
+    # Terminal-formatted printer + the review_report object itself.
+
+  - path: test/behaviors/review-diff.test.ts
+    generated_from: review-diff.behavior.yaml
+    generate_with: vitest-behavior-suite
+    # One test per scenario id — the request-time-lastmod-is-a-seo-finding
+    # and blocks-unsanitized-dangerously-set-inner-html scenarios reuse
+    # the exact two fixtures already validated by hand on fairlab_landing.
+
+  - path: .no-yolo.example.yml
+    generated_from: review-config.artifact.yaml
+    generate_with: yaml-example
+    # Ships in the published package as the template `no-yolo-review init` copies into a consuming repo.

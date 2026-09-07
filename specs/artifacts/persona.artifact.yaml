@@ -1,0 +1,31 @@
+kind: artifact
+name: persona
+version: "0.1.0"
+description: One reviewer role in the fan-out step — a narrow, single-concern lens over the same staged diff
+
+fields:
+  - name: name
+    type: string
+    required: true
+    description: "kebab-case id, also used as finding.persona (e.g., \"correctness\", \"security\", \"seo\")"
+
+  - name: enabled
+    type: boolean
+    required: true
+    description: Whether this persona participates in a review run. A disabled persona stays defined but is skipped — the plugin on/off switch.
+
+  - name: severity_default
+    type: enum
+    required: true
+    values: [block, warn]
+    description: Severity this persona uses for its findings when a policy override doesn't escalate them
+
+  - name: focus
+    type: string
+    required: false
+    description: System-prompt fragment describing exactly what this persona looks for. Optional for the three built-in personas (correctness, security, seo), which ship with a reasonable default in code — required for any custom persona a project adds, since there is no sensible default to fall back to.
+
+  - name: builtin
+    type: boolean
+    required: false
+    description: True for the three shipped presets (correctness, security, seo). Projects should not need to set this — it is assigned by the persona registry, not by project config.

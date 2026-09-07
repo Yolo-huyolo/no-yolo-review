@@ -1,0 +1,37 @@
+kind: artifact
+name: review-config
+version: "0.1.0"
+description: Parsed shape of a project's .no-yolo.yml — the one file a consuming repo edits to configure everything
+
+fields:
+  - name: mode
+    type: enum
+    required: true
+    description: Default run mode when no CLI flag overrides it
+    values: [fast, full]
+
+  - name: branch_protect
+    type: array
+    required: true
+    description: "Branch names direct commits are blocked on (e.g., [main, master])"
+
+  - name: branch_prefix
+    type: string
+    required: true
+    description: "Prefix for the auto-created branch name when a protected-branch commit is redirected (e.g., \"FAIRLND\" for fairlab_landing) — replaces what used to be hardcoded per project"
+
+  - name: namer
+    type: enum
+    required: true
+    values: [claude, codex, ollama]
+    description: Which Kitana-routed CLI generates the branch-name slug and, in fast mode, runs the single-pass review
+
+  - name: personas
+    type: array
+    required: true
+    description: List of persona artifacts (see persona.artifact.yaml) — order does not affect the fan-out, since all run in parallel
+
+  - name: policy_overrides
+    type: array
+    required: false
+    description: List of {match, severity} pairs from review-policy.yaml's config-facing subset — regex/keyword rules the aggregator applies after personas report, independent of what any single persona's model call decided

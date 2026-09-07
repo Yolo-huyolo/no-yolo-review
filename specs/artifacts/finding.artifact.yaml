@@ -1,0 +1,36 @@
+kind: artifact
+name: finding
+version: "0.1.0"
+description: A single issue reported by one persona reviewing a staged diff
+
+fields:
+  - name: persona
+    type: string
+    required: true
+    description: "Name of the persona that reported this finding (e.g., \"security\")"
+
+  - name: severity
+    type: enum
+    required: true
+    values: [block, warn]
+    description: block fails the commit; warn is printed but does not stop it. May be escalated by a policy override regardless of the persona's own judgment.
+
+  - name: summary
+    type: string
+    required: true
+    description: One-sentence statement of the problem, written for a developer reading it in a terminal
+
+  - name: file
+    type: string
+    required: false
+    description: Repo-relative path the finding anchors to
+
+  - name: line
+    type: integer
+    required: false
+    description: 1-indexed line number within file, when known
+
+  - name: escalated_by
+    type: string
+    required: false
+    description: id of the policy rule that forced this finding's severity, when a policy override applied (see review-policy.yaml)

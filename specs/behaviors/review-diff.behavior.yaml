@@ -1,0 +1,64 @@
+kind: behavior
+name: review-diff
+version: "0.1.0"
+description: Acceptance scenarios for the review flows. Several of these are direct writeups of real bugs caught (or, in one case, missed and then fixed) manually on fairlab_landing before this project existed — kept as permanent regression scenarios, not hypotheticals.
+
+scenarios:
+  - id: blocks-unsanitized-dangerously-set-inner-html
+    given: A staged diff adds a page component that fetches an external URL, types the response as any, and renders a field from it via dangerouslySetInnerHTML with no sanitization
+    when: review-diff-fast or review-diff runs
+    then: The report contains a finding with severity block, persona security (or the fast-mode single pass), describing the unsanitized HTML injection
+
+  - id: clean-diff-produces-no-blocking-findings
+    given: A staged diff that only fixes a typo in a comment
+    when: review-diff-fast runs
+    then: review_report.blocked is false and findings is empty
+
+  - id: fails-open-when-provider-cli-missing
+    given: review_config.namer's CLI is not present on PATH
+    when: review-diff-fast runs
+    then: review_report.degraded is true, review_report.blocked is false, and the commit is not blocked solely because the review could not run
+
+  - id: fails-open-on-persona-timeout
+    given: One persona's ADK agent turn exceeds the persona-timeout budget in review-policy.yaml, while the other two personas complete normally
+    when: review-diff runs
+    then: aggregate-findings still runs on the personas that did complete, and the report is not marked degraded solely because of the one slow persona
+
+  - id: full-mode-never-runs-without-explicit-opt-in
+    given: review_config.mode is fast and the CLI is invoked with no flags
+    when: a commit is made on a non-protected branch
+    then: review-diff-fast runs, not review-diff, per the full-mode-is-opt-in rule in review-policy.yaml
+
+  - id: request-time-lastmod-is-a-seo-finding
+    given: A staged diff adds a sitemap entry whose lastModified value is computed from the current request time (e.g. new Date()) rather than a stored content-edit date
+    when: review-diff or review-diff-fast runs with the seo persona enabled
+    then: The report contains a finding with persona seo describing that lastModified/dateModified must reflect a real, stable content-edit date, not request time
+    # This scenario codifies a real miss: the first version of this
+    # check (built by hand on fairlab_landing, before this project
+    # existed) did not catch this pattern in three separate commits
+    # that used new Date() for sitemap lastModified, because the
+    # review prompt at the time only checked presence/structure (is it
+    # in the sitemap, does structured data exist), not value
+    # correctness. The prompt was corrected after a human caught it in
+    # review. Any future persona prompt regressing on this exact
+    # pattern is a regression, not a new bug.
+
+  - id: redirects-protected-branch-commit
+    given: current_branch is main and the fast-mode review reports no blocking findings
+    when: a commit is made
+    then: redirect-protected-branch runs, a new branch named "<branch_prefix>-<timestamp>-<slug>" is created, and the commit lands there instead of on main
+
+  - id: does-not-redirect-on-feature-branch
+    given: current_branch is a feature branch, not in review_config.branch_protect
+    when: a commit is made with no blocking findings
+    then: redirect-protected-branch does not run and the commit lands on the current branch
+
+  - id: branch-creation-failure-aborts-commit
+    given: current_branch is main and a branch named identically to the one about to be generated already exists
+    when: redirect-protected-branch's create-branch step runs
+    then: "the commit is aborted with a clear error naming the collision, per create-branch's critical:true setting — the commit must not silently land on main when the redirect itself fails"
+
+  - id: disabled-persona-is-skipped-not-errored
+    given: review_config.personas includes an entry with enabled false
+    when: review-diff's load-personas step runs
+    then: that persona does not appear in active_personas and does not produce a finding, and this is not treated as an error

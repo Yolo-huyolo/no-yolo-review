@@ -1,0 +1,26 @@
+kind: artifact
+name: review-report
+version: "0.1.0"
+description: Final output of a review run, after aggregation — what the CLI prints and what the pre-commit hook's exit code is based on
+
+fields:
+  - name: findings
+    type: array
+    required: true
+    description: Deduplicated list of finding artifacts, already policy-escalated where applicable
+
+  - name: blocked
+    type: boolean
+    required: true
+    description: "True when findings contains at least one severity: block entry. The hook exits non-zero iff this is true."
+
+  - name: mode
+    type: enum
+    required: true
+    values: [fast, full]
+    description: Which mode actually produced this report
+
+  - name: degraded
+    type: boolean
+    required: false
+    description: True when a persona or the aggregator itself failed, timed out, or the underlying CLI was unavailable, and the run fell back to a reduced/partial result rather than failing the commit outright (fail-open — see review-policy.yaml)
