@@ -1,6 +1,6 @@
 {
   "name": "no-yolo-review",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Standalone multi-persona AI code review (npx no-yolo-review) — the deep-dive companion to no-yolo-commits, built on Kitana + ADK + Architecto specs",
   "type": "module",
   "main": "dist/index.js",

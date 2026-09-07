@@ -1,22 +1,65 @@
 #!/usr/bin/env sh
 
-# --- no-yolo-review: full multi-persona pass before pushing ---
-# no-yolo-commits' pre-commit hook (see .husky/pre-commit) already ran a
-# fast, single-pass review on every commit. This repo also dogfoods its own
-# full multi-persona review (correctness + security — seo is off for this
-# repo, see .no-yolo-review.yml) here, at push time rather than on every
-# commit: a real fan-out+aggregate pass is too slow to want blocking every
-# local commit (see specs/policies/review-policy.yaml).
+# --- no-yolo-review: review the commits actually being pushed ---
+# .husky/pre-commit (no-yolo-commits) already ran a fast single-pass review
+# on every commit. This is the deeper multi-persona pass, at push time
+# rather than every commit since a real fan-out+aggregate review is too
+# slow to want blocking every local commit.
 #
-# Fails open the same way the fast review does: a missing/erroring provider
-# CLI makes the *review* come back degraded, not blocked — see
-# review-diff.behavior.yaml's fails-open-when-provider-cli-missing scenario.
-# This only blocks the push on an actual severity:block finding (or on
-# no-yolo-review's own code crashing outright, which prints and exits
-# non-zero same as any real bug would).
-if command -v npx >/dev/null 2>&1 && [ -f package.json ]; then
-  echo "→ Running no-yolo-review (full multi-persona pass) before push..."
-  if ! npx tsx src/cli.ts --all --html .no-yolo-review-report.html; then
+# Reviews the push RANGE (git diff <remote>..<local> per ref), not the
+# whole repo (--all): an earlier version of this hook used --all, and it
+# meant every single push re-reviewed this entire project's source from
+# scratch — 5-10+ minutes of real LLM calls regardless of how small the
+# actual change was. --all stays a manual-only audit command; hooks always
+# review a diff. (This is the same fix already applied to fairlab_landing's
+# pre-push — this hook just hadn't been brought in line with it yet.)
+zero="0000000000000000000000000000000000000000"
+diff_all=""
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "$local_sha" ] && continue
+  [ "$local_sha" = "$zero" ] && continue # deleting a ref — nothing to review
+
+  if [ "$remote_sha" = "$zero" ]; then
+    # New branch, no remote history for this ref yet — diff from where it
+    # forked off the default branch, not its entire history.
+    merge_base="$(git merge-base "$local_sha" origin/main 2>/dev/null || git merge-base "$local_sha" origin/master 2>/dev/null || true)"
+    [ -z "$merge_base" ] && continue
+    range="$merge_base..$local_sha"
+  else
+    range="$remote_sha..$local_sha"
+  fi
+
+  chunk="$(git diff "$range" -- . ':(exclude)package-lock.json' 2>/dev/null || true)"
+  if [ -n "$chunk" ]; then
+    diff_all="${diff_all}${chunk}
+"
+  fi
+done
+
+if [ -z "$diff_all" ]; then
+  exit 0
+fi
+
+# Prefer a globally-installed binary over `npx --yes`: npx fetches
+# whatever's currently published on every single invocation with no
+# pinning — no-yolo-review's own security persona flagged exactly that on
+# itself (a compromised/typosquatted publish would get arbitrary code
+# execution on every push). `npm install -g no-yolo-review` once avoids it;
+# npx stays the fallback for a machine that hasn't done that yet.
+run_review() {
+  if command -v no-yolo-review >/dev/null 2>&1; then
+    no-yolo-review "$@"
+  elif command -v npx >/dev/null 2>&1; then
+    npx --yes no-yolo-review "$@"
+  else
+    return 0
+  fi
+}
+
+if command -v no-yolo-review >/dev/null 2>&1 || command -v npx >/dev/null 2>&1; then
+  echo "→ Running no-yolo-review (full multi-persona pass) on the commits being pushed..."
+  if ! printf '%s' "$diff_all" | run_review --html .no-yolo-review-report.html; then
     echo ""
     echo "⛔ no-yolo-review found blocking issues — see above, or open .no-yolo-review-report.html"
     echo "Push anyway with: git push --no-verify"
