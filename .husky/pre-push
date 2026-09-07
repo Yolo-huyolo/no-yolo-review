@@ -41,9 +41,25 @@ if [ -z "$diff_all" ]; then
   exit 0
 fi
 
-if command -v npx >/dev/null 2>&1; then
+# Prefer a globally-installed binary over `npx --yes`: npx fetches
+# whatever's currently published on every single invocation with no
+# pinning — no-yolo-review's own security persona flagged exactly that on
+# itself (a compromised/typosquatted publish would get arbitrary code
+# execution on every push). `npm install -g no-yolo-review` once avoids it;
+# npx stays the fallback for a machine that hasn't done that yet.
+run_review() {
+  if command -v no-yolo-review >/dev/null 2>&1; then
+    no-yolo-review "$@"
+  elif command -v npx >/dev/null 2>&1; then
+    npx --yes no-yolo-review "$@"
+  else
+    return 0
+  fi
+}
+
+if command -v no-yolo-review >/dev/null 2>&1 || command -v npx >/dev/null 2>&1; then
   echo "→ Running no-yolo-review (full multi-persona pass) on the commits being pushed..."
-  if ! printf '%s' "$diff_all" | npx --yes no-yolo-review --html .no-yolo-review-report.html; then
+  if ! printf '%s' "$diff_all" | run_review --html .no-yolo-review-report.html; then
     echo ""
     echo "⛔ no-yolo-review found blocking issues — see above, or open .no-yolo-review-report.html"
     echo "Push anyway with: git push --no-verify"

@@ -11,6 +11,16 @@ npx no-yolo-review
 
 Reviews whatever's staged (`git diff --cached`). No staged changes and nothing piped in on stdin? Nothing to review, exits 0.
 
+### Install it once instead
+
+`npx` re-fetches whatever's currently published on every single invocation — fine occasionally, less fine from a hook that runs on every push, both for speed and because it means an unpinned registry fetch runs on every developer's machine at push time:
+
+```bash
+npm install -g no-yolo-review
+```
+
+After that, hooks and scripts should call the bare `no-yolo-review` command (it's on PATH) instead of `npx --yes no-yolo-review` — see the pre-push example below, which checks for the global install first and only falls back to `npx` if it's not there.
+
 ## What it actually does
 
 1. **Three built-in personas run concurrently**, each with a narrow brief:
@@ -124,7 +134,16 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 "
 done
 [ -z "$diff_all" ] && exit 0
-printf '%s' "$diff_all" | npx --yes no-yolo-review --html .no-yolo-review-report.html || {
+run_review() {
+  if command -v no-yolo-review >/dev/null 2>&1; then no-yolo-review "$@"
+  else npx --yes no-yolo-review "$@"
+  fi
+}
+# if/elif here, not `A && B || C` — that trap re-runs via npx (against
+# already-consumed, now-empty stdin) whenever the installed binary finds a
+# real blocking issue and exits 1, silently replacing a real finding with
+# npx's "nothing to review" result.
+printf '%s' "$diff_all" | run_review --html .no-yolo-review-report.html || {
   echo "Push anyway with: git push --no-verify"
   exit 1
 }
