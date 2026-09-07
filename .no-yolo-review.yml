@@ -1,0 +1,10 @@
+# no-yolo-review reviewing itself. This is a CLI library with no pages,
+# metadata, or sitemaps of its own — the seo persona has nothing to check
+# here, so it's off. correctness and security stay on their built-in
+# defaults (this file only needs to mention what it's overriding — see
+# .no-yolo-review.example.yml for the full field list).
+personas:
+  - name: seo
+    enabled: false
+
+stack: "TypeScript CLI/library (no-yolo-review) — reviews other repos' diffs; has no web pages or SEO surface of its own"

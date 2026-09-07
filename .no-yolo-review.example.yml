@@ -1,0 +1,29 @@
+# Optional. no-yolo-review works with zero config — the three built-in
+# personas (correctness, security, seo) cover the common case. Copy this to
+# .no-yolo-review.yml only if you need one of the overrides below.
+
+# Free-text description of your stack, passed into every persona's prompt so
+# findings are relevant instead of generic. Mirrors no-yolo-commits' --stack.
+stack: "TypeScript"
+
+# Which Kitana-routed CLI runs the personas: claude, codex, or ollama.
+namer: claude
+
+# Uncomment to disable a built-in persona, or add a custom one (custom
+# personas must set `focus` — there's no default to fall back to).
+# personas:
+#   - name: seo
+#     enabled: false
+#   - name: accessibility
+#     enabled: true
+#     severity_default: warn
+#     focus: >
+#       You review a git diff for accessibility regressions only: missing
+#       alt text, unlabeled form controls, interactive elements that aren't
+#       keyboard-reachable, insufficient color contrast introduced by the diff.
+
+# Regex/keyword rules applied after personas report, additive to the
+# built-in security-findings-always-block rule (which this can't override).
+# policy_overrides:
+#   - match: "console.log"
+#     severity: warn

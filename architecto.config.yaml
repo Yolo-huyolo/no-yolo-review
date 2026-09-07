@@ -1,6 +1,6 @@
 name: no-yolo-review
 version: 0.1.0
-description: Multi-persona AI code review for git pre-commit, built on Kitana + ADK
+description: Standalone multi-persona AI code review (npx no-yolo-review) — the deep-dive companion to no-yolo-commits, built on Kitana + ADK
 
 specs:
   directory: ./specs

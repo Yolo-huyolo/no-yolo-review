@@ -1,37 +1,26 @@
 kind: artifact
 name: review-config
 version: "0.1.0"
-description: Parsed shape of a project's .no-yolo.yml — the one file a consuming repo edits to configure everything
+description: Optional configuration for a no-yolo-review run. Unlike no-yolo-commits, most projects need zero config — the three built-in personas (correctness, security, seo) cover the common case out of the box. This shape backs both CLI flags (for the common overrides) and an optional .no-yolo-review.yml (for persona customization a flag can't express cleanly).
 
 fields:
-  - name: mode
-    type: enum
-    required: true
-    description: Default run mode when no CLI flag overrides it
-    values: [fast, full]
-
-  - name: branch_protect
-    type: array
-    required: true
-    description: "Branch names direct commits are blocked on (e.g., [main, master])"
-
-  - name: branch_prefix
+  - name: stack
     type: string
-    required: true
-    description: "Prefix for the auto-created branch name when a protected-branch commit is redirected (e.g., \"FAIRLND\" for fairlab_landing) — replaces what used to be hardcoded per project"
+    required: false
+    description: "Free-text description of the project's stack (e.g., \"Next.js + TypeScript + Postgres\"), passed into every persona's prompt so findings are relevant instead of generic. Mirrors no-yolo-commits' --stack flag. Defaults to \"TypeScript\" when unset."
 
   - name: namer
     type: enum
-    required: true
+    required: false
     values: [claude, codex, ollama]
-    description: Which Kitana-routed CLI generates the branch-name slug and, in fast mode, runs the single-pass review
+    description: Which Kitana-routed CLI runs every persona's ADK agent. Defaults to claude.
 
   - name: personas
     type: array
-    required: true
-    description: List of persona artifacts (see persona.artifact.yaml) — order does not affect the fan-out, since all run in parallel
+    required: false
+    description: List of persona artifacts (see persona.artifact.yaml). Defaults to the three built-in presets (correctness, security, seo), all enabled. Only needs to be set to disable a built-in persona or add a custom one — order does not affect the fan-out, since all run in parallel.
 
   - name: policy_overrides
     type: array
     required: false
-    description: List of {match, severity} pairs from review-policy.yaml's config-facing subset — regex/keyword rules the aggregator applies after personas report, independent of what any single persona's model call decided
+    description: List of {match, severity} pairs — regex/keyword rules the aggregator applies after personas report, independent of what any single persona's model call decided. Additive to review-policy.yaml's built-in security-findings-always-block rule, not a replacement for it.

@@ -1,33 +1,22 @@
 kind: policy
 name: review-policy
 version: "0.1.0"
-description: Execution rules for the review flows — fail-open behavior, timeouts, and severity escalation independent of any single persona's own judgment
+description: Execution rules for the review-diff flow — fail-open behavior, timeouts, and severity escalation independent of any single persona's own judgment. no-yolo-review only ever runs the full multi-persona pass; it has no fast mode of its own (that's no-yolo-commits' job) and no separate opt-in rule is needed since running it at all is already the opt-in.
 
 rules:
   - id: fail-open-on-review-unavailable
-    description: A review step that cannot complete (CLI missing, errors, exceeds timeout) must never be the sole reason a commit is blocked
-    applies_to: review-diff, review-diff-fast
-    condition: kitana CLI call errors, times out, or the underlying provider CLI is not on PATH
+    description: A review step that cannot complete (CLI missing, errors, exceeds timeout) must never be the sole reason the CLI exits as if blocked
+    applies_to: review-diff
+    condition: an ADK persona call (via Kitana) errors, times out, or the underlying provider CLI is not on PATH
     action: warn
     # "warn" here means: the step provides an empty/partial result and
-    # review_report.degraded is set true, not that the commit is
-    # blocked. Distinct from a persona reporting a real finding at
-    # severity:warn.
-
-  - id: full-mode-is-opt-in
-    description: The multi-persona fan-out/aggregate flow must never run as the default pre-commit gate
-    applies_to: review-diff
-    condition: review_config.mode == fast AND no --full flag on invocation
-    action: deny
-    # "deny" = this flow does not run at all in that condition;
-    # review-diff-fast runs instead. Reflects the explicit decision
-    # that per-commit latency for every local commit matters more than
-    # the deeper multi-persona pass, which stays available on demand.
+    # review_report.degraded is set true, not that blocked becomes true.
+    # Distinct from a persona reporting a real finding at severity:warn.
 
   - id: persona-timeout
-    description: A single persona's ADK agent turn (fan-out step) has its own budget, independent of the others
+    description: A single persona's ADK agent turn (fan-out step) has its own budget, independent of the others. The budget scales with how much material that persona was handed (a large --all whole-repo review legitimately takes longer per persona than a normal diff) — a flat 90s was tried first and measured too short for a real --all run, capped so a truly stuck call still gets dropped
     applies_to: review-diff / fan-out-personas
-    condition: elapsed > 90s for one persona
+    condition: elapsed > budget(material size) for one persona
     action: warn
     # That persona's result is dropped from persona_results; the other
     # personas' results still proceed to aggregation. One slow persona
@@ -46,6 +35,6 @@ rules:
 
   - id: no-network-side-effects-during-review
     description: Persona and aggregator agents may only use read-only tools (Read, Grep, git diff/show/log) — never Write/Edit or a Bash invocation that isn't a read-only git subcommand
-    applies_to: review-diff, review-diff-fast
+    applies_to: review-diff
     condition: always
     action: deny

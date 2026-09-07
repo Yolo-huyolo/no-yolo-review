@@ -1,28 +1,47 @@
 {
   "name": "no-yolo-review",
   "version": "0.1.0",
-  "description": "Multi-persona AI code review for git pre-commit, built on Kitana + ADK + Architecto specs",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "description": "Standalone multi-persona AI code review (npx no-yolo-review) — the deep-dive companion to no-yolo-commits, built on Kitana + ADK + Architecto specs",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "no-yolo-review": "dist/cli.js"
   },
-  "keywords": [],
+  "files": [
+    "dist",
+    ".no-yolo-review.example.yml"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build",
+    "prepare": "husky"
+  },
+  "keywords": [
+    "code-review",
+    "ai",
+    "claude",
+    "adk",
+    "no-yolo-commits"
+  ],
   "author": "",
   "license": "MIT",
-  "type": "module",
   "dependencies": {
     "@google/adk": "^2.0.0",
     "@google/genai": "^2.21.0",
     "@kitana-sdk/adk": "^0.1.7",
     "@kitana-sdk/core": "^0.1.8",
-    "architecto": "^0.1.0",
     "commander": "^15.0.0",
     "yaml": "^2.9.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
+    "architecto": "^0.1.0",
+    "husky": "^9.1.7",
     "tsx": "^4.23.13",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^3.2.4"
   }
 }

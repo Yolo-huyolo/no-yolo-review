@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+
+# --- no-yolo-review: full multi-persona pass before pushing ---
+# no-yolo-commits' pre-commit hook (see .husky/pre-commit) already ran a
+# fast, single-pass review on every commit. This repo also dogfoods its own
+# full multi-persona review (correctness + security — seo is off for this
+# repo, see .no-yolo-review.yml) here, at push time rather than on every
+# commit: a real fan-out+aggregate pass is too slow to want blocking every
+# local commit (see specs/policies/review-policy.yaml).
+#
+# Fails open the same way the fast review does: a missing/erroring provider
+# CLI makes the *review* come back degraded, not blocked — see
+# review-diff.behavior.yaml's fails-open-when-provider-cli-missing scenario.
+# This only blocks the push on an actual severity:block finding (or on
+# no-yolo-review's own code crashing outright, which prints and exits
+# non-zero same as any real bug would).
+if command -v npx >/dev/null 2>&1 && [ -f package.json ]; then
+  echo "→ Running no-yolo-review (full multi-persona pass) before push..."
+  if ! npx tsx src/cli.ts --all --html .no-yolo-review-report.html; then
+    echo ""
+    echo "⛔ no-yolo-review found blocking issues — see above, or open .no-yolo-review-report.html"
+    echo "Push anyway with: git push --no-verify"
+    exit 1
+  fi
+fi

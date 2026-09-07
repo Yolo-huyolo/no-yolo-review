@@ -1,7 +1,7 @@
 kind: artifact
 name: review-report
 version: "0.1.0"
-description: Final output of a review run, after aggregation — what the CLI prints and what the pre-commit hook's exit code is based on
+description: Final output of a no-yolo-review run, after aggregation — what the CLI prints to stdout and what its exit code is based on
 
 fields:
   - name: findings
@@ -12,15 +12,9 @@ fields:
   - name: blocked
     type: boolean
     required: true
-    description: "True when findings contains at least one severity: block entry. The hook exits non-zero iff this is true."
-
-  - name: mode
-    type: enum
-    required: true
-    values: [fast, full]
-    description: Which mode actually produced this report
+    description: "True when findings contains at least one severity: block entry. The CLI exits non-zero iff this is true — including when invoked as `npx no-yolo-review` from inside a future no-yolo-commits hook."
 
   - name: degraded
     type: boolean
     required: false
-    description: True when a persona or the aggregator itself failed, timed out, or the underlying CLI was unavailable, and the run fell back to a reduced/partial result rather than failing the commit outright (fail-open — see review-policy.yaml)
+    description: True when a persona or the aggregator itself failed, timed out, or the underlying CLI was unavailable, and the run fell back to a reduced/partial result instead of reporting as blocked outright (fail-open — see review-policy.yaml)

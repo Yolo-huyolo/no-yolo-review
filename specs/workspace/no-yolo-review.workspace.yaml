@@ -7,9 +7,36 @@ structure:
   - path: src/cli.ts
     generated_from: review-diff.flow.yaml
     generate_with: node-cli-entrypoint
-    # Parses argv (--full, --dev, etc.), loads .no-yolo.yml, dispatches
-    # to review-diff-fast or review-diff, then redirect-protected-branch
-    # per review-policy.yaml's full-mode-is-opt-in rule.
+    # A single entrypoint: parse argv/optional .no-yolo-review.yml, run
+    # review-diff, print review-report, exit 0/1 on review_report.blocked.
+    # No --full/--fast switch — this package only ever runs the full
+    # multi-persona pass; that's its entire reason to exist alongside
+    # no-yolo-commits. Must not prompt interactively, since it's meant
+    # to run unattended both from a terminal and, later, from inside a
+    # `npx no-yolo-review` call made by a no-yolo-commits hook.
+    # --all feeds review-diff-chunked the whole tracked-plus-not-gitignored
+    # codebase, chunked (see src/repo-source.ts), instead of one
+    # `git diff --cached` string. --html <path> additionally writes a
+    # self-contained HTML report alongside the terminal one. When stdin is
+    # piped (not a TTY) and --all isn't set, that piped text is the diff
+    # instead of `git diff --cached` — e.g. a pre-push hook piping
+    # `git diff <remote>..<local>` in, since --all doesn't scale to "review
+    # what's about to be pushed" on anything past a small project, and
+    # --cached is normally empty by push time. None of this changes
+    # review-diff.flow.yaml itself — all of it is CLI-level: what string(s)
+    # become staged_diff and how review_report gets rendered, not new flow
+    # steps.
+
+  - path: src/repo-source.ts
+    generated_from: review-diff.flow.yaml
+    generate_with: typescript-module
+    # Not itself part of the flow — a --all-mode input source. Lists
+    # tracked+untracked-not-gitignored files, drops lockfile noise, and
+    # packs them into size-bounded chunks (packIntoChunks, pure and unit
+    # tested directly) so each chunk stays well under
+    # @kitana-sdk/core's ~120s hard CLI-kill ceiling. Whatever budget is
+    # chosen here is empirical, not derived from a spec value — tune
+    # DEFAULT_CHUNK_BUDGET_CHARS in code if real runs show it's off.
 
   - path: src/config/schema.ts
     generated_from: review-config.artifact.yaml
@@ -20,8 +47,10 @@ structure:
   - path: src/config/load.ts
     generated_from: review-config.artifact.yaml
     generate_with: yaml-loader
-    # Reads .no-yolo.yml, validates against schema.ts, merges built-in
-    # persona defaults for any enabled persona missing `focus`.
+    # Reads an optional .no-yolo-review.yml if present, validates
+    # against schema.ts, merges CLI flags (--stack, --namer) and the
+    # three built-in persona defaults for any enabled persona missing
+    # `focus`. No config file at all is a fully valid, common case.
 
   - path: src/personas/registry.ts
     generated_from: persona.artifact.yaml
@@ -53,14 +82,6 @@ structure:
     # aggregate-findings as a single following LlmAgent (ADK
     # SequentialAgent composition of the two).
 
-  - path: src/flows/review-diff-fast.ts
-    generated_from: review-diff-fast.flow.yaml
-    generate_with: kitana-single-call
-
-  - path: src/flows/redirect-protected-branch.ts
-    generated_from: redirect-protected-branch.flow.yaml
-    generate_with: git-cli-wrapper
-
   - path: src/policy/apply.ts
     generated_from: review-policy.yaml
     generate_with: typescript-module
@@ -75,11 +96,12 @@ structure:
   - path: test/behaviors/review-diff.test.ts
     generated_from: review-diff.behavior.yaml
     generate_with: vitest-behavior-suite
-    # One test per scenario id — the request-time-lastmod-is-a-seo-finding
-    # and blocks-unsanitized-dangerously-set-inner-html scenarios reuse
-    # the exact two fixtures already validated by hand on fairlab_landing.
+    # One test per scenario id — blocks-unsanitized-dangerously-set-inner-html
+    # and request-time-lastmod-is-a-seo-finding reuse the exact two
+    # fixtures already validated by hand on fairlab_landing.
 
-  - path: .no-yolo.example.yml
+  - path: .no-yolo-review.example.yml
     generated_from: review-config.artifact.yaml
     generate_with: yaml-example
-    # Ships in the published package as the template `no-yolo-review init` copies into a consuming repo.
+    # Ships in the published package as an optional template — most
+    # consuming repos won't need to copy this in at all.
