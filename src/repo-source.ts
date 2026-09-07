@@ -81,9 +81,11 @@ export function packIntoChunks(entries: readonly FileEntry[], budgetChars: numbe
 }
 
 // ~148KB in one request measured at ~118s per persona against Kitana's hard
-// 120s ceiling. Chunking to well under half that leaves real margin instead
-// of trading one edge case for another.
-export const DEFAULT_CHUNK_BUDGET_CHARS = 50_000;
+// 120s ceiling — but real run-to-run variance (CLI startup, provider-side
+// load) means even a ~40KB chunk has occasionally hit that ceiling too, so
+// this alone isn't the full fix (see callWithRetry in flows/review-diff.ts
+// for the other half). Smaller leaves more margin regardless.
+export const DEFAULT_CHUNK_BUDGET_CHARS = 35_000;
 
 export function getWholeRepoChunks(
   budgetChars: number = DEFAULT_CHUNK_BUDGET_CHARS,

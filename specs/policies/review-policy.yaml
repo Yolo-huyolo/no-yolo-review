@@ -12,6 +12,11 @@ rules:
     # "warn" here means: the step provides an empty/partial result and
     # review_report.degraded is set true, not that blocked becomes true.
     # Distinct from a persona reporting a real finding at severity:warn.
+    # Before falling back, a single call gets one retry: real runs show
+    # meaningful timing variance per call (CLI startup, provider-side load)
+    # independent of input size — often just that one attempt being unlucky,
+    # not a persistent unavailability. Still counts as "review unavailable"
+    # for this rule once both attempts are exhausted.
 
   - id: persona-timeout
     description: A single persona's ADK agent turn (fan-out step) has its own budget, independent of the others. The budget scales with how much material that persona was handed (a large --all whole-repo review legitimately takes longer per persona than a normal diff) — a flat 90s was tried first and measured too short for a real --all run, capped so a truly stuck call still gets dropped

@@ -79,6 +79,30 @@ describe("fails-open-when-provider-cli-missing", () => {
     expect(report.degraded).toBe(true);
     expect(report.blocked).toBe(false);
   });
+
+  it("recovers a persona that fails once but succeeds on retry, without marking the report degraded", async () => {
+    // Real runs show meaningful per-call timing variance (CLI startup,
+    // provider-side load) independent of chunk size — a single failed
+    // attempt is often just that one call being unlucky, not the provider
+    // being genuinely unavailable. One retry should absorb that.
+    let attempts = 0;
+    const deps: ReviewDiffDeps = {
+      runPersonaLlm: (persona) => {
+        if (persona.name !== "security") return empty();
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new Error("transient CLI error"))
+          : Promise.resolve({ findings: [{ severity: "warn", summary: "found on retry" }] });
+      },
+      runAggregatorLlm: passthroughAggregator,
+    };
+
+    const report = await reviewDiff({ stagedDiff: "diff --git a/x ...", reviewConfig: config, deps });
+
+    expect(attempts).toBe(2);
+    expect(report.degraded).toBeFalsy();
+    expect(report.findings).toContainEqual(expect.objectContaining({ summary: "found on retry" }));
+  });
 });
 
 describe("fails-open-on-persona-timeout", () => {
@@ -99,7 +123,9 @@ describe("fails-open-on-persona-timeout", () => {
       };
 
       const reportPromise = reviewDiff({ stagedDiff: "diff --git a/x ...", reviewConfig: config, deps });
-      await vi.advanceTimersByTimeAsync(90_001);
+      // One retry means a persona that never resolves times out twice
+      // (see callWithRetry) before it's given up on — advance past both.
+      await vi.advanceTimersByTimeAsync(90_001 * 2);
       const report = await reportPromise;
 
       const reportingPersonas = new Set(report.findings.map((f) => f.persona));

@@ -240,6 +240,26 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+// Real calls through Kitana to a CLI provider show meaningful run-to-run
+// variance independent of input size (CLI startup, provider-side load) — on
+// top of @kitana-sdk/core's hard 120s kill, observed directly hitting that
+// ceiling even on modest chunk sizes. A timeout or transient CLI error is
+// often just that one call being unlucky; one retry recovers most of those
+// without needing a bigger timeout budget (which wouldn't help — Kitana's
+// ceiling isn't ours to raise) or smaller chunks (which don't address
+// variance that isn't proportional to size).
+async function callWithRetry<T>(fn: () => Promise<T>, timeoutMs: number, attempts = 2): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await withTimeout(fn(), timeoutMs);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr;
+}
+
 interface FanOutResult {
   findings: TaggedFinding[];
   degraded: boolean;
@@ -247,10 +267,10 @@ interface FanOutResult {
 
 /**
  * fan-out-personas: every active persona, concurrently, each under its own
- * budget. A persona that errors or exceeds PERSONA_TIMEOUT_MS is dropped —
- * fail-open-on-review-unavailable / persona-timeout — the others still
- * proceed to aggregation (review-diff.behavior.yaml:
- * fails-open-on-persona-timeout).
+ * budget and up to one retry (see callWithRetry). A persona that still
+ * errors or times out after that is dropped — fail-open-on-review-
+ * unavailable / persona-timeout — the others still proceed to aggregation
+ * (review-diff.behavior.yaml: fails-open-on-persona-timeout).
  *
  * This intentionally uses plain Promise.allSettled rather than ADK's
  * ParallelAgent: per-persona timeout and drop-on-error need to be enforced
@@ -265,7 +285,7 @@ async function fanOutPersonas(
   const timeoutMs = personaTimeoutFor(diff.length);
   const settled = await Promise.allSettled(
     personas.map((persona) =>
-      withTimeout(deps.runPersonaLlm(persona, diff, config), timeoutMs).then(
+      callWithRetry(() => deps.runPersonaLlm(persona, diff, config), timeoutMs).then(
         (output) => ({ persona, output }),
       ),
     ),
@@ -303,8 +323,8 @@ async function aggregateFindings(
     return { findings: [], degraded: false };
   }
   try {
-    const aggregated = await withTimeout(
-      deps.runAggregatorLlm(findings, config),
+    const aggregated = await callWithRetry(
+      () => deps.runAggregatorLlm(findings, config),
       PERSONA_TIMEOUT_MS,
     );
     return { findings: aggregated.findings, degraded: false };
